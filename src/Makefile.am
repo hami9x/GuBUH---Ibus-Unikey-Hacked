@@ -21,11 +21,13 @@ noinst_HEADERS = \
     engine_const.h \
     utils.h
 
-ibus_engine_unikey_CXXFLAGS = @IBUS_CFLAGS@ @X11_CFLAGS@
+ibus_engine_unikey_CXXFLAGS = @IBUS_CFLAGS@ @X11_CFLAGS@ @GTK_CFLAGS@ @XTST_CFLAGS@
 
 ibus_engine_unikey_LDFLAGS = \
 	@IBUS_LIBS@ \
 	@X11_LIBS@ \
+	@GTK_LIBS@ \
+	@XTST_LIBS@ \
 	$(top_builddir)/ukengine/libunikey-ibus.la
 
 component_DATA = unikey.xml

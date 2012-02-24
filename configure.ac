@@ -53,6 +53,11 @@ PKG_CHECK_MODULES(GTK,
 )
 AC_SUBST(GTK)
 
+PKG_CHECK_MODULES(XTST,
+	xtst
+)
+AC_SUBST(XTST)
+
 # OUTPUT files
 AC_CONFIG_FILES( po/Makefile.in
     Makefile

@@ -8,6 +8,10 @@
 #include <string.h>
 #include <X11/Xlib.h>
 #include <ibus.h>
+#include <gdk/gdk.h>
+#include <gdk/gdkkeysyms.h>
+#include <gdk/gdkx.h>
+#include <X11/extensions/XTest.h>
 
 #include "engine_const.h"
 #include "engine_private.h"
@@ -22,6 +26,7 @@
 #define _(string) gettext(string)
 
 #define CONVERT_BUF_SIZE 1024
+
 
 const gchar*          Unikey_IMNames[]    = {"Telex", "Vni", "STelex", "STelex2"};
 const UkInputMethod   Unikey_IM[]         = {UkTelex, UkVni, UkSimpleTelex, UkSimpleTelex2};
@@ -70,6 +75,8 @@ static pthread_mutex_t mutex_mcap;
 static Display* dpy;
 static IBusUnikeyEngine* unikey; // current (focus) unikey engine
 static gboolean mcap_running;
+static Display* dsp;
+static KeyCode IUK_Backspace; 
 
 GType ibus_unikey_engine_get_type(void)
 {
@@ -102,7 +109,6 @@ void ibus_unikey_init(IBusBus* bus)
 {
     //UnikeySetup();
     config = ibus_bus_get_config(bus);
-
     mcap_running = TRUE;
     pthread_mutex_init(&mutex_mcap, NULL);
     pthread_mutex_trylock(&mutex_mcap); // lock mutex after init so mouse capture not start
@@ -139,6 +145,13 @@ static void ibus_unikey_engine_class_init(IBusUnikeyEngineClass* klass)
 
 static void ibus_unikey_engine_init(IBusUnikeyEngine* unikey)
 {
+	gint *argc = 0;
+	gchar ***argv = 0;
+	gdk_init(argc, argv);
+
+	dsp = (Display *) gdk_x11_get_default_xdisplay();
+	IUK_Backspace = XKeysymToKeycode(dsp, XK_BackSpace);
+
     gchar* str;
     gboolean b;
     guint i;
@@ -262,6 +275,27 @@ static void ibus_unikey_engine_focus_out(IBusEngine* engine)
     ibus_unikey_engine_reset(engine);
 
     parent_class->focus_out(engine);
+}
+
+
+static void ibus_unikey_engine_send_bs_press()
+{
+	XTestFakeKeyEvent( dsp, IUK_Backspace, True, 0);
+	//XSync(dsp, False);
+	//XTestGrabControl (dsp, False);
+}
+
+static void ibus_unikey_engine_send_bs_release()
+{
+	//XTestGrabControl (dsp, True);
+	XTestFakeKeyEvent( dsp, IUK_Backspace, False, 0);
+	//XSync(dsp, False);
+	//XTestGrabControl (dsp, False);
+}
+
+static void ibus_unikey_engine_send_bs() {
+	XTestFakeKeyEvent( dsp, IUK_Backspace, True, 0);
+	XTestFakeKeyEvent( dsp, IUK_Backspace, False, 0);
 }
 
 static void ibus_unikey_engine_reset(IBusEngine* engine)
@@ -757,6 +791,8 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
         return false;
     }
 
+	
+
     else if (modifiers & IBUS_CONTROL_MASK
              || modifiers & IBUS_MOD1_MASK // alternate mask
              || keyval == IBUS_Control_L
@@ -796,31 +832,10 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
             {
                 unikey->preeditstr->clear();
                 ibus_engine_hide_preedit_text(engine);
-                unikey->auto_commit = true;
             }
             else
             {
                 ibus_unikey_engine_erase_chars(engine, UnikeyBackspaces);
-                ibus_unikey_engine_update_preedit_string(engine, unikey->preeditstr->c_str(), true);
-            }
-
-            // change tone position after press backspace
-            if (UnikeyBufChars > 0)
-            {
-                if (unikey->oc == CONV_CHARSET_XUTF8)
-                {
-                    unikey->preeditstr->append((const gchar*)UnikeyBuf, UnikeyBufChars);
-                }
-                else
-                {
-                    static unsigned char buf[CONVERT_BUF_SIZE];
-                    int bufSize = CONVERT_BUF_SIZE;
-
-                    latinToUtf(buf, UnikeyBuf, UnikeyBufChars, &bufSize);
-                    unikey->preeditstr->append((const gchar*)buf, CONVERT_BUF_SIZE - bufSize);
-                }
-
-                unikey->auto_commit = false;
                 ibus_unikey_engine_update_preedit_string(engine, unikey->preeditstr->c_str(), true);
             }
         }
