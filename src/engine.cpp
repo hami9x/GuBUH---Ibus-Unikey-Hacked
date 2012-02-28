@@ -3,6 +3,7 @@
 #endif
 #include <libintl.h>
 #include <stdlib.h>
+#include <iostream>
 
 #include <wait.h>
 #include <string.h>
@@ -77,6 +78,10 @@ static IBusUnikeyEngine* unikey; // current (focus) unikey engine
 static gboolean mcap_running;
 static Display* dsp;
 static KeyCode IUK_Backspace; 
+static int fakeBs = 0;
+
+static std::string pendingCommit = "";
+static bool aCommitPending = false;
 
 GType ibus_unikey_engine_get_type(void)
 {
@@ -294,8 +299,10 @@ static void ibus_unikey_engine_send_bs_release()
 }
 
 static void ibus_unikey_engine_send_bs() {
-	XTestFakeKeyEvent( dsp, IUK_Backspace, True, 0);
-	XTestFakeKeyEvent( dsp, IUK_Backspace, False, 0);
+	//XTestFakeKeyEvent( dsp, IUK_Backspace, True, 0);
+	//XTestFakeKeyEvent( dsp, IUK_Backspace, False, 0);
+	ibus_unikey_engine_send_bs_press();
+	ibus_unikey_engine_send_bs_release();
 }
 
 static void ibus_unikey_engine_reset(IBusEngine* engine)
@@ -306,7 +313,7 @@ static void ibus_unikey_engine_reset(IBusEngine* engine)
     if (unikey->preeditstr->length() > 0)
     {
         ibus_engine_hide_preedit_text(engine);
-        ibus_unikey_engine_commit_string(engine, unikey->preeditstr->c_str());
+        //ibus_unikey_engine_commit_string(engine, unikey->preeditstr->c_str());
         unikey->preeditstr->clear();
         //XWarpPointer(dpy, None, None, 0, 0, 0, 0, 0, 0); // emulate a mouse move
         //XFlush(dpy);
@@ -713,9 +720,98 @@ static void ibus_unikey_engine_commit_string(IBusEngine *engine, const gchar *st
     ibus_engine_commit_text(engine, text);
 }
 
+static const gchar * ibus_unikey_mb_substring(const gchar * str, int bkspaces) {
+	printf("^^^^\n");
+	const int len = strlen(str);
+	if (bkspaces==0 || len==0) return "\0";
+	int endpos = len-1;
+	bool uced = false;
+	int i;
+	for (i=endpos; i>=0; i--) {
+		printf("%d::", (int)str[i]);
+		try {
+			if (str[i]>=0 && uced) throw 1;
+		} catch(int e) {
+			printf("Broken str (in ibus_unikey_mb_substring)\n");
+			exit(e);
+		}
+
+		if (str[i]>=0) bkspaces--;
+		else {
+			if (uced) { bkspaces--; uced=false; }
+			else uced=true;
+		}
+		if (bkspaces==0) break;
+	}
+	/*std::string cpstr;
+	cpstr.assign(str, i, len-i);
+	std::cout << cpstr << std::endl; */
+
+	gchar *s = new char[len];
+	for (int j=0; i<=len; i++, j++) {
+		s[j]=str[i];
+	}
+
+	return s;
+}
+
 static void ibus_unikey_engine_update_preedit_string(IBusEngine *engine, const gchar *string, gboolean visible)
 {
-    IBusText *text;
+	//printf("%s:::%s\n", UnikeyBuf, UnikeyBufChars);
+	//printf("UkBsp: %d\n", UnikeyBackspaces);
+	//printf("1:%s\n", unikey->preeditstr->c_str());
+	if (UnikeyBackspaces>0) {
+		//UnikeyBackspacePress();
+		printf("UK:%s\n", UnikeyBuf);
+		int backspaces = UnikeyBackspaces;
+		UnikeyBackspaces = 0;
+		fakeBs = backspaces;
+		for (int i=0; i<backspaces; i++) {
+			ibus_unikey_engine_send_bs();
+		}
+		//ibus_unikey_engine_commit_string(engine, "!\0");
+		//printf("%s, %s>>\n", UnikeyBuf, unikey->preeditstr->c_str());
+		//ibus_unikey_engine_commit_string(engine, unikey->preeditstr->c_str());
+		//std::string cmstr = unikey->preeditstr->substr(unikey->preeditstr->size()-backspaces, unikey->preeditstr->npos);
+		//std::string cmstr = "";
+		//cmstr.assign(*(unikey->preeditstr), unikey->preeditstr->size()-backspaces, unikey->preeditstr->npos);
+		const gchar * ukch = unikey->preeditstr->c_str();
+		/*for (int i=0; i<strlen(ukch); i++) {
+			printf("%d::", (int)ukch[i]);
+		}*/
+		//printf("\n");
+		//const gchar * cmc = cmstr.c_str();
+		/*const gchar * cmc = ibus_unikey_mb_substring(ukch, backspaces);
+		for (int i=0; i<=strlen(cmc); i++) {
+			printf(">>%d::", cmc[i]);
+		}*/
+		if (UnikeyBufChars <= 0) return;
+		pendingCommit.clear();
+		if (unikey->oc == CONV_CHARSET_XUTF8)
+		{
+			pendingCommit.append((const gchar*)UnikeyBuf, UnikeyBufChars);
+		}
+		else
+		{
+			static unsigned char buf[CONVERT_BUF_SIZE];
+			int bufSize = CONVERT_BUF_SIZE;
+
+			latinToUtf(buf, UnikeyBuf, UnikeyBufChars, &bufSize);
+			pendingCommit.append((const gchar*)buf, CONVERT_BUF_SIZE - bufSize);
+		}
+		aCommitPending = true;
+		std::cout << ">>>" << pendingCommit << "<<<\n";
+	}
+	else {
+		if (strlen(string)>0) {
+			char last[2];
+			last[0]=string[strlen(string)-1];
+			last[1]='\0';
+			ibus_unikey_engine_commit_string(engine, last);
+		}
+	}
+
+    /*IBusText *text;
 
     unikey = (IBusUnikeyEngine*)engine;
 
@@ -723,16 +819,19 @@ static void ibus_unikey_engine_update_preedit_string(IBusEngine *engine, const g
 
     // underline text
     ibus_text_append_attribute(text, IBUS_ATTR_TYPE_UNDERLINE, IBUS_ATTR_UNDERLINE_SINGLE, 0, -1);
+	
 
     // update and display text
-    ibus_engine_update_preedit_text(engine, text, ibus_text_get_length(text), visible);
+    //ibus_engine_update_preedit_text(engine, text, ibus_text_get_length(text), visible);
 
+	
     // every time have preedit text -> unlock mutex -> start capture mouse
     if (unikey->mouse_capture)
     {
         // unlock capture thread (start capture)
         pthread_mutex_unlock(&mutex_mcap);
     }
+	*/
 }
 
 static void ibus_unikey_engine_erase_chars(IBusEngine *engine, int num_chars)
@@ -765,6 +864,7 @@ static gboolean ibus_unikey_engine_process_key_event(IBusEngine* engine,
     static gboolean tmp;
 
     unikey = (IBusUnikeyEngine*)engine;
+	ibus_engine_hide_preedit_text(engine);
 
     tmp = ibus_unikey_engine_process_key_event_preedit(engine, keyval, keycode, modifiers);
 
@@ -786,7 +886,12 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
                                                              guint keycode,
                                                              guint modifiers)
 {
-    if (modifiers & IBUS_RELEASE_MASK)
+	if (fakeBs==0 && aCommitPending) {
+		ibus_unikey_engine_commit_string(engine, pendingCommit.c_str());
+		pendingCommit = "";
+		aCommitPending = false;
+	}
+	if (modifiers & IBUS_RELEASE_MASK)
     {
         return false;
     }
@@ -819,7 +924,14 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
     // capture BackSpace
     else if (keyval == IBUS_BackSpace)
     {
+		if (fakeBs>0) {
+			fakeBs--;
+			return false;
+		}
+		
+
         UnikeyBackspacePress();
+		
 
         if (UnikeyBackspaces == 0 || unikey->preeditstr->empty())
         {
@@ -839,6 +951,7 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
                 ibus_unikey_engine_update_preedit_string(engine, unikey->preeditstr->c_str(), true);
             }
         }
+		
         return true;
     } // end capture BackSpace
 
@@ -860,7 +973,7 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
 
         // auto commit word that never need to change later in preedit string (like consonant - phu am)
         // if macro enabled, then not auto commit. Because macro may change any word
-        if (unikey->ukopt.macroEnabled == 0 && (UnikeyAtWordBeginning() || unikey->auto_commit))
+        /*if (unikey->ukopt.macroEnabled == 0 && (UnikeyAtWordBeginning() || unikey->auto_commit))
         {
             for (i =0; i < sizeof(WordAutoCommit); i++)
             {
@@ -871,7 +984,7 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
                     return false;
                 }
             }
-        } // end auto commit
+        } // end auto commit*/
 
         if ((unikey->im == UkTelex || unikey->im == UkSimpleTelex2)
             && unikey->process_w_at_begin == false
@@ -955,7 +1068,10 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
                 if (WordBreakSyms[i] == unikey->preeditstr->at(unikey->preeditstr->length()-1)
                     && WordBreakSyms[i] == keyval)
                 {
-                    ibus_unikey_engine_reset(engine);
+					std::string str;
+					str+=unikey->preeditstr->at(unikey->preeditstr->length()-1);
+					ibus_unikey_engine_commit_string(engine, str.c_str());
+					ibus_unikey_engine_reset(engine);
                     return true;
                 }
             }
