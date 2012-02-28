@@ -1,10 +1,13 @@
-IBus-Unikey IME
+GuBUH: Ibus Unikey Hacked
+(Forked from IBus-Unikey IME)
 ---------------
-Copyright (C) 2009 - 2011 Ubuntu-VN <http://www.ubuntu-vn.org>
-Author: Lê Quốc Tuấn <mr.lequoctuan@gmail.com>
-Home: http://ibus-unikey.googlecode.com
+Copyleft (C) 2009 - 2011 Ubuntu-VN <http://www.ubuntu-vn.org>
+Author: Nguyễn Thành Hải <phaikawl@gmail.com>, Lê Quốc Tuấn <mr.lequoctuan@gmail.com>
+Home: https://github.com/phaikawl/GuBUH---Ibus-Unikey-Hacked 
 License: GNU GENERAL PUBLIC LICENSE v3
 ---------------------------------------------
+GuBUH is a fork of (i.e derived from) ibus-unikey, aims to remove preedit and process events the way the original Unikey does
+
 ibus-unikey is an ibus input method engine.
 It use ukengine for progress key event.
 (a modified version of ukengine)

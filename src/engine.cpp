@@ -720,40 +720,6 @@ static void ibus_unikey_engine_commit_string(IBusEngine *engine, const gchar *st
     ibus_engine_commit_text(engine, text);
 }
 
-static const gchar * ibus_unikey_mb_substring(const gchar * str, int bkspaces) {
-	printf("^^^^\n");
-	const int len = strlen(str);
-	if (bkspaces==0 || len==0) return "\0";
-	int endpos = len-1;
-	bool uced = false;
-	int i;
-	for (i=endpos; i>=0; i--) {
-		printf("%d::", (int)str[i]);
-		try {
-			if (str[i]>=0 && uced) throw 1;
-		} catch(int e) {
-			printf("Broken str (in ibus_unikey_mb_substring)\n");
-			exit(e);
-		}
-
-		if (str[i]>=0) bkspaces--;
-		else {
-			if (uced) { bkspaces--; uced=false; }
-			else uced=true;
-		}
-		if (bkspaces==0) break;
-	}
-	/*std::string cpstr;
-	cpstr.assign(str, i, len-i);
-	std::cout << cpstr << std::endl; */
-
-	gchar *s = new char[len];
-	for (int j=0; i<=len; i++, j++) {
-		s[j]=str[i];
-	}
-
-	return s;
-}
 
 static void ibus_unikey_engine_update_preedit_string(IBusEngine *engine, const gchar *string, gboolean visible)
 {
@@ -772,8 +738,6 @@ static void ibus_unikey_engine_update_preedit_string(IBusEngine *engine, const g
 		latinToUtf(buf, UnikeyBuf, UnikeyBufChars, &bufSize);
 		pendingCommit.append((const gchar*)buf, CONVERT_BUF_SIZE - bufSize);
 	}
-
-	std::cout << ">>>" << pendingCommit << "<<<\n";
 
 	if (UnikeyBackspaces>0) {
 		int backspaces = UnikeyBackspaces;
