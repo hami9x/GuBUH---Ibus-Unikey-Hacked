@@ -757,58 +757,36 @@ static const gchar * ibus_unikey_mb_substring(const gchar * str, int bkspaces) {
 
 static void ibus_unikey_engine_update_preedit_string(IBusEngine *engine, const gchar *string, gboolean visible)
 {
-	//printf("%s:::%s\n", UnikeyBuf, UnikeyBufChars);
-	//printf("UkBsp: %d\n", UnikeyBackspaces);
-	//printf("1:%s\n", unikey->preeditstr->c_str());
+	if (UnikeyBufChars <= 0) return;
+	pendingCommit.clear();
+
+	if (unikey->oc == CONV_CHARSET_XUTF8)
+	{
+		pendingCommit.append((const gchar*)UnikeyBuf, UnikeyBufChars);
+	}
+	else
+	{
+		static unsigned char buf[CONVERT_BUF_SIZE];
+		int bufSize = CONVERT_BUF_SIZE;
+
+		latinToUtf(buf, UnikeyBuf, UnikeyBufChars, &bufSize);
+		pendingCommit.append((const gchar*)buf, CONVERT_BUF_SIZE - bufSize);
+	}
+
+	std::cout << ">>>" << pendingCommit << "<<<\n";
+
 	if (UnikeyBackspaces>0) {
-		//UnikeyBackspacePress();
-		printf("UK:%s\n", UnikeyBuf);
 		int backspaces = UnikeyBackspaces;
 		UnikeyBackspaces = 0;
 		fakeBs = backspaces;
 		for (int i=0; i<backspaces; i++) {
 			ibus_unikey_engine_send_bs();
 		}
-		//ibus_unikey_engine_commit_string(engine, "!\0");
-		//printf("%s, %s>>\n", UnikeyBuf, unikey->preeditstr->c_str());
-		//ibus_unikey_engine_commit_string(engine, unikey->preeditstr->c_str());
-		//std::string cmstr = unikey->preeditstr->substr(unikey->preeditstr->size()-backspaces, unikey->preeditstr->npos);
-		//std::string cmstr = "";
-		//cmstr.assign(*(unikey->preeditstr), unikey->preeditstr->size()-backspaces, unikey->preeditstr->npos);
-		const gchar * ukch = unikey->preeditstr->c_str();
-		/*for (int i=0; i<strlen(ukch); i++) {
-			printf("%d::", (int)ukch[i]);
-		}*/
-		//printf("\n");
-		//const gchar * cmc = cmstr.c_str();
-		/*const gchar * cmc = ibus_unikey_mb_substring(ukch, backspaces);
-		for (int i=0; i<=strlen(cmc); i++) {
-			printf(">>%d::", cmc[i]);
-		}*/
-		if (UnikeyBufChars <= 0) return;
-		pendingCommit.clear();
-		if (unikey->oc == CONV_CHARSET_XUTF8)
-		{
-			pendingCommit.append((const gchar*)UnikeyBuf, UnikeyBufChars);
-		}
-		else
-		{
-			static unsigned char buf[CONVERT_BUF_SIZE];
-			int bufSize = CONVERT_BUF_SIZE;
-
-			latinToUtf(buf, UnikeyBuf, UnikeyBufChars, &bufSize);
-			pendingCommit.append((const gchar*)buf, CONVERT_BUF_SIZE - bufSize);
-		}
 		aCommitPending = true;
-		std::cout << ">>>" << pendingCommit << "<<<\n";
 	}
 	else {
-		if (strlen(string)>0) {
-			char last[2];
-			last[0]=string[strlen(string)-1];
-			last[1]='\0';
-			ibus_unikey_engine_commit_string(engine, last);
-		}
+		ibus_unikey_engine_commit_string(engine, pendingCommit.c_str());
+		aCommitPending = false;
 	}
 
     /*IBusText *text;
@@ -1036,7 +1014,7 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
 
         if (UnikeyBufChars > 0)
         {
-            if (unikey->oc == CONV_CHARSET_XUTF8)
+            /*if (unikey->oc == CONV_CHARSET_XUTF8)
             {
                 unikey->preeditstr->append((const gchar*)UnikeyBuf, UnikeyBufChars);
             }
@@ -1048,14 +1026,16 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
                 latinToUtf(buf, UnikeyBuf, UnikeyBufChars, &bufSize);
                 unikey->preeditstr->append((const gchar*)buf, CONVERT_BUF_SIZE - bufSize);
             }
+			*/
         }
         else if (keyval != IBUS_Shift_L && keyval != IBUS_Shift_R) // if ukengine not process
         {
-            static int n;
-            static char s[6];
+            //static int n;
+            //static char s[6];
 
-            n = g_unichar_to_utf8(keyval, s); // convert ucs4 to utf8 char
-            unikey->preeditstr->append(s, n);
+            //n = g_unichar_to_utf8(keyval, s); // convert ucs4 to utf8 char
+            //unikey->preeditstr->append(s, n);
+			return false;
         }
         // end process result of ukengine
 
@@ -1068,11 +1048,11 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine* engine,
                 if (WordBreakSyms[i] == unikey->preeditstr->at(unikey->preeditstr->length()-1)
                     && WordBreakSyms[i] == keyval)
                 {
-					std::string str;
-					str+=unikey->preeditstr->at(unikey->preeditstr->length()-1);
-					ibus_unikey_engine_commit_string(engine, str.c_str());
+					//std::string str;
+					//str+=unikey->preeditstr->at(unikey->preeditstr->length()-1);
+					//ibus_unikey_engine_commit_string(engine, str.c_str());
 					ibus_unikey_engine_reset(engine);
-                    return true;
+                    return false;
                 }
             }
         }
